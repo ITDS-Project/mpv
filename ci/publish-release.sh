@@ -49,9 +49,9 @@ base_url="https://github.com/$GH_REPO/releases/download/$tag"
 section() {
     jq -r --arg url "$base_url" --arg re "$1" '
       def pretty:
-        (if   test("i686")    then "i686"
-         elif test("aarch64") then "arm64"
-         elif test("-arm$")   then "arm64"
+        (if   test("i686")       then "i686"
+         elif test("aarch64")    then "arm64"
+         elif test("-arm(64)?$") then "arm64"
          else "x86_64" end) as $arch
         | [ (if   test("mingw32-full") then "full"
              elif test("mingw32$")     then "GCC"
@@ -60,14 +60,18 @@ section() {
              elif test("-gpl$")        then "GPL"
              else empty end),
             (if test("macos") then "macOS " + capture("macos-(?<v>[0-9]+)").v else empty end),
+            (if   test("-linux-")   then "Linux"
+             elif test("-android-") then "Android"
+             elif test("-ios-")     then "iOS"
+             else empty end),
             (if test("-pdb$") then "debug symbols" else empty end) ] as $q
         | $arch + (if ($q | length) > 0 then " (" + ($q | join(", ")) + ")" else "" end);
       # x86_64, arm64, i686 in that order, full before Clang, GPL before LGPL,
-      # debug symbols last
+      # Android before iOS, debug symbols last
       def rank:
         [ (if test("-pdb$") then 1 else 0 end),
           (if test("x86_64|intel") then 0 elif test("i686") then 2 else 1 end),
-          (if test("windows-msvc|-lgpl$") then 1 else 0 end),
+          (if test("windows-msvc|-lgpl$|-ios-") then 1 else 0 end),
           (if test("macos") then (capture("macos-(?<v>[0-9]+)").v | tonumber) else 0 end) ];
       [ .artifacts[] | select(.name | test($re)) ] | sort_by(.name | rank)
       | map("* [\(.name | pretty)](\($url)/\(.name).zip)") | join("\n")
@@ -98,7 +102,15 @@ with all its GPL parts and FFmpeg with \`--enable-gpl --enable-version3\`.
 LGPL builds are LGPLv3, made with \`-Dgpl=false\` against the LGPL FFmpeg
 variant, for software that cannot link GPL.
 
-$(section '^libmpv-')
+$(section '^libmpv-.*mingw32')
+
+### libmpv (Linux, Android, iOS)
+
+\`libmpv\` as a single shared library with headers. FFmpeg, libass and
+libplacebo are linked in statically. Linux builds need glibc 2.28, Android
+builds API level 21 and iOS builds iOS 13.
+
+$(section '^libmpv-.*-(linux|android|ios)-')
 
 ### macOS
 
