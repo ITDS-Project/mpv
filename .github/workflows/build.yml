@@ -1,35 +1,7 @@
 name: build
 
 on:
-  push:
-    branches:
-      - master
-      - ci
-      - 'release/**'
-    tags:
-      - 'v0.*'
-    paths-ignore:
-      - 'DOCS/**'
-      - 'TOOLS/lua/**'
-      - '.editorconfig'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/PULL_REQUEST_TEMPLATE'
-      - '.gitignore'
-      - 'Copyright'
-      - 'README.md'
-      - 'RELEASE_NOTES'
-  pull_request:
-    branches: [master]
-    paths-ignore:
-      - 'DOCS/**'
-      - 'TOOLS/lua/**'
-      - '.editorconfig'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/PULL_REQUEST_TEMPLATE'
-      - '.gitignore'
-      - 'Copyright'
-      - 'README.md'
-      - 'RELEASE_NOTES'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -509,6 +481,24 @@ jobs:
         run: |
           cat ./build/meson-logs/testlog.txt
 
+      - name: Create archive
+        run: |
+          DESTDIR=$PWD/artifact meson install -C build
+          tar -czvf mpv.tar.gz -C artifact .
+
+      - name: Artifact name
+        id: artifact
+        run: |
+          VERSION_FILE=$(find . -path "*/common/version.h" -type f | head -n 1)
+          VER=$(grep VERSION "$VERSION_FILE" | cut -d'"' -f2)
+          PR=${{ github.event.pull_request.number && format('-pr{0}', github.event.pull_request.number) || '' }}
+          echo "name=mpv-$VER$PR-${{ github.run_id }}-linux-${{ matrix.config.cc }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: mpv.tar.gz
+
   linux-fuzz:
     runs-on: ubuntu-latest
     container:
@@ -573,156 +563,6 @@ jobs:
         id: build
         run: |
           ./ci/build-linux-old.sh
-
-      - name: Print meson log
-        if: ${{ failure() && steps.build.outcome == 'failure' }}
-        run: |
-          cat ./build/meson-logs/meson-log.txt
-
-      - name: Run meson tests
-        id: tests
-        run: |
-          meson test -C build
-
-      - name: Print meson test log
-        if: ${{ failure() && steps.tests.outcome == 'failure' }}
-        run: |
-          cat ./build/meson-logs/testlog.txt
-
-  openbsd:
-    runs-on: ubuntu-latest # until https://github.com/actions/runner/issues/385
-    timeout-minutes: 15 # avoid any weirdness with the VM
-    defaults:
-      run:
-        shell: cpa.sh {0} --sync-files none
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Start OpenBSD VM
-        uses: cross-platform-actions/action@v1.7.0
-        with:
-          operating_system: openbsd
-          version: '7.8'
-          sync_files: runner-to-vm
-
-      - name: Install dependencies
-        run: |
-          sudo pkg_add -U \
-              cmake \
-              curl \
-              ffmpeg \
-              git \
-              libarchive \
-              libbluray \
-              libcaca \
-              libcdio-paranoia \
-              libdvdnav \
-              libiconv \
-              libplacebo \
-              libsixel \
-              libv4l \
-              libxkbcommon \
-              luajit \
-              meson \
-              openal \
-              pkgconf \
-              pulseaudio \
-              python3 \
-              rubberband \
-              rust \
-              sdl2 \
-              shaderc \
-              spirv-cross \
-              spirv-headers \
-              uchardet \
-              vulkan-loader \
-              vulkan-headers \
-              zimg
-
-      - name: Build with meson
-        id: build
-        run: |
-          ./ci/build-openbsd.sh
-
-      - name: Print meson log
-        if: ${{ failure() && steps.build.outcome == 'failure' }}
-        run: |
-          cat ./build/meson-logs/meson-log.txt
-
-      - name: Run meson tests
-        id: tests
-        run: |
-          meson test -C build
-
-      - name: Print meson test log
-        if: ${{ failure() && steps.tests.outcome == 'failure' }}
-        run: |
-          cat ./build/meson-logs/testlog.txt
-
-  freebsd:
-    runs-on: ubuntu-latest # until https://github.com/actions/runner/issues/385
-    timeout-minutes: 15 # avoid any weirdness with the VM
-    defaults:
-      run:
-        shell: cpa.sh {0} --sync-files none
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Start FreeBSD VM
-        uses: cross-platform-actions/action@v1.7.0
-        with:
-          operating_system: freebsd
-          version: '15.1'
-          sync_files: runner-to-vm
-
-      - name: Install dependencies
-        run: |
-          sudo pkg update
-          sudo pkg install -y \
-              alsa-lib \
-              cmake-core \
-              curl \
-              evdev-proto \
-              ffmpeg \
-              git \
-              iconv \
-              jackit \
-              libarchive \
-              libbluray \
-              libcaca \
-              libcdio-paranoia \
-              libdvdnav \
-              libdvdread \
-              libdisplay-info \
-              libplacebo \
-              libsixel \
-              libXinerama \
-              libxkbcommon \
-              libXpresent \
-              libXv \
-              luajit \
-              meson \
-              mujs \
-              openal-soft \
-              pipewire \
-              pkgconf \
-              pulseaudio \
-              python3 \
-              rubberband \
-              rust \
-              sekrit-twc-zimg \
-              sdl2 \
-              sndio \
-              uchardet \
-              v4l_compat \
-              vapoursynth \
-              vulkan-headers \
-              wayland-protocols
-
-      - name: Build with meson
-        id: build
-        run: |
-          ./ci/build-freebsd.sh
 
       - name: Print meson log
         if: ${{ failure() && steps.build.outcome == 'failure' }}
@@ -832,9 +672,50 @@ jobs:
         run: |
           cat ./build/meson-logs/testlog.txt
 
+  mobile:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: android
+            os: ubuntu-latest
+          - target: ios
+            os: macos-26
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          pipx install meson
+          pipx install ninja
+
+      - name: Build with meson
+        id: build
+        run: |
+          ./ci/build-mobile.sh ${{ matrix.target }}
+
+      - name: Print meson log
+        if: ${{ failure() && steps.build.outcome == 'failure' }}
+        run: |
+          cat ./build/meson-logs/meson-log.txt
+
+      - name: Artifact name
+        id: artifact
+        run: |
+          VERSION_FILE=$(find . -path "*/common/version.h" -type f | head -n 1)
+          VER=$(grep VERSION "$VERSION_FILE" | cut -d'"' -f2)
+          PR=${{ github.event.pull_request.number && format('-pr{0}', github.event.pull_request.number) || '' }}
+          echo "name=libmpv-$VER$PR-${{ github.run_id }}-${{ matrix.target }}-arm64" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: artifact/*
+
   publish:
     name: Publish release
-    needs: [mingw, mingw64-full, win32, macos]
+    needs: [mingw, mingw64-full, win32, macos, linux, mobile]
     if: github.event_name == 'push' && github.repository == 'mpv-player/mpv' &&
         (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v0.'))
     runs-on: ubuntu-slim
