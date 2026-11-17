@@ -4,7 +4,7 @@ set -e
 case "$1" in
 android)
     toolchain="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
-    args=(-Dffmpeg:mediandk=enabled -Dlibass:require-system-font-provider=false)
+    args=(-Dlibass:require-system-font-provider=false)
     cat > cross.ini <<EOF
 [binaries]
 c = '$toolchain/aarch64-linux-android21-clang'
