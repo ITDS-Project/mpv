@@ -59,20 +59,21 @@ section() {
              elif test("-lgpl$")       then "LGPL"
              elif test("-gpl$")        then "GPL"
              else empty end),
-            (if test("macos") then "macOS " + capture("macos-(?<v>[0-9]+)").v else empty end),
-            (if   test("-linux-")   then "Linux"
-             elif test("-android-") then "Android"
-             elif test("-ios-")     then "iOS"
+            (if   test("macos-[0-9]") then "macOS " + capture("macos-(?<v>[0-9]+)").v
+             elif test("-macos-")     then "macOS"
+             elif test("-linux-")     then "Linux"
+             elif test("-android-")   then "Android"
+             elif test("-ios-")       then "iOS"
              else empty end),
             (if test("-pdb$") then "debug symbols" else empty end) ] as $q
         | $arch + (if ($q | length) > 0 then " (" + ($q | join(", ")) + ")" else "" end);
       # x86_64, arm64, i686 in that order, full before Clang, GPL before LGPL,
-      # Android before iOS, debug symbols last
+      # Android before iOS before macOS, debug symbols last
       def rank:
         [ (if test("-pdb$") then 1 else 0 end),
           (if test("x86_64|intel") then 0 elif test("i686") then 2 else 1 end),
-          (if test("windows-msvc|-lgpl$|-ios-") then 1 else 0 end),
-          (if test("macos") then (capture("macos-(?<v>[0-9]+)").v | tonumber) else 0 end) ];
+          (if test("windows-msvc|-lgpl$|-ios-") then 1 elif test("^libmpv-.*-macos-") then 2 else 0 end),
+          (if test("macos-[0-9]") then (capture("macos-(?<v>[0-9]+)").v | tonumber) else 0 end) ];
       [ .artifacts[] | select(.name | test($re)) ] | sort_by(.name | rank)
       | map("* [\(.name | pretty)](\($url)/\(.name).zip)") | join("\n")
     ' <<< "$artifacts"
@@ -104,17 +105,18 @@ variant, for software that cannot link GPL.
 
 $(section '^libmpv-.*mingw32')
 
-### libmpv (Linux, Android, iOS)
+### libmpv (Linux, Android, iOS, macOS)
 
 \`libmpv\` as a single shared library with headers. FFmpeg, libass and
-libplacebo are linked in statically. Linux builds need glibc 2.28, Android
-builds API level 21 and iOS builds iOS 13.
+libplacebo are linked in statically. These are LGPLv2.1 builds, made with
+\`-Dgpl=false\`. Linux builds need glibc 2.28, Android builds API level 21,
+iOS builds iOS 13 and macOS builds macOS 11.
 
-$(section '^libmpv-.*-(linux|android|ios)-')
+$(section '^libmpv-.*-(linux|android|ios|macos)-')
 
 ### macOS
 
-$(section 'macos')
+$(section '^mpv-.*macos')
 
 > [!WARNING]
 > These are untested development builds of the very latest \`master\`.

@@ -364,6 +364,7 @@ jobs:
           restore-keys: ${{ matrix.os }}-
 
       - name: Install dependencies
+        id: deps
         run: |
           if [[ -n "${{ matrix.homebrew }}" ]]; then
             export HOMEBREW_NO_AUTO_UPDATE=1
@@ -432,7 +433,7 @@ jobs:
 
       - name: Save Cache
         uses: actions/cache/save@v6
-        if: always()
+        if: ${{ always() && steps.deps.outcome == 'success' }}
         with:
           path: |
             ${{ steps.cache_config.outputs.prefix }}/Cellar/libplacebo
@@ -671,6 +672,12 @@ jobs:
             arch: x86_64
             os: ubuntu-latest
             container: quay.io/pypa/manylinux_2_28_x86_64
+          - target: macos
+            arch: arm64
+            os: macos-26
+          - target: macos
+            arch: x86_64
+            os: macos-26
     steps:
       - uses: actions/checkout@v7
 
@@ -684,10 +691,15 @@ jobs:
         run: |
           dnf install -y alsa-lib-devel nasm
 
+      - name: Install macOS dependencies
+        if: ${{ matrix.target == 'macos' && matrix.arch == 'x86_64' }}
+        run: |
+          brew install nasm
+
       - name: Build with meson
         id: build
         run: |
-          ./ci/build-libmpv.sh ${{ matrix.target }}
+          ./ci/build-libmpv.sh ${{ matrix.target }} ${{ matrix.arch }}
 
       - name: Print meson log
         if: ${{ failure() && steps.build.outcome == 'failure' }}
@@ -714,7 +726,7 @@ jobs:
   publish:
     name: Publish release
     needs: [mingw, mingw64-full, win32, macos, libmpv]
-    if: github.event_name == 'push' && github.repository == 'mpv-player/mpv' &&
+    if: github.event_name == 'push' && github.repository == 'ITDS-Project/mpv' &&
         (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v0.'))
     runs-on: ubuntu-slim
     permissions:

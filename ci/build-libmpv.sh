@@ -28,14 +28,23 @@ cpu = 'aarch64'
 endian = 'little'
 EOF
     ;;
-ios)
-    export MACOS_SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
-    export MACOS_SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+ios|macos)
+    if [[ $1 == ios ]]; then
+        sdk=iphoneos
+        target=$2-apple-ios13.0
+        mpv_args=(-D{avfoundation,coreaudio,videotoolbox-gl}=disabled)
+    else
+        sdk=macosx
+        target=$2-apple-macos11.0
+        mpv_args=(-Dcocoa=disabled)
+    fi
+    export MACOS_SDK="$(xcrun --sdk $sdk --show-sdk-path)"
+    export MACOS_SDK_VERSION="$(xcrun --sdk $sdk --show-sdk-version)"
     export PKG_CONFIG_LIBDIR="$deps/lib/pkgconfig"
-    clang="'-target', 'arm64-apple-ios13.0', '-isysroot', '$MACOS_SDK'"
-    ffmpeg_args=(--enable-cross-compile --target-os=darwin --arch=arm64
-                 --cc="clang -target arm64-apple-ios13.0 -isysroot $MACOS_SDK" --enable-videotoolbox)
-    mpv_args=(--cross-file cross.ini -D{avfoundation,coreaudio,videotoolbox-gl}=disabled)
+    clang="'-target', '$target', '-isysroot', '$MACOS_SDK'"
+    ffmpeg_args=(--enable-cross-compile --target-os=darwin --arch=$2
+                 --cc="clang -target $target -isysroot $MACOS_SDK" --enable-videotoolbox)
+    mpv_args+=(--cross-file cross.ini)
     cat > cross.ini <<EOF
 [binaries]
 c = ['clang', $clang]
@@ -48,9 +57,9 @@ needs_exe_wrapper = true
 
 [host_machine]
 system = 'darwin'
-subsystem = 'ios'
-cpu_family = 'aarch64'
-cpu = 'aarch64'
+subsystem = '$1'
+cpu_family = '${2/arm64/aarch64}'
+cpu = '${2/arm64/aarch64}'
 endian = 'little'
 EOF
     ;;
@@ -92,6 +101,11 @@ meson setup build "${mpv_args[@]}" \
   --prefer-static \
   --prefix="$PWD/artifact" \
   -D:default_library=shared \
-  -Dcplayer=false
+  -Dcplayer=false \
+  -Dgpl=false
 meson compile -C build
 meson install -C build --skip-subprojects
+
+if [[ $1 == ios || $1 == macos ]]; then
+    install_name_tool -id @rpath/libmpv.2.dylib artifact/lib/libmpv.2.dylib
+fi
