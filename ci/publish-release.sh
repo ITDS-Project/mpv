@@ -110,7 +110,8 @@ $(section '^libmpv-.*mingw32')
 \`libmpv\` as a single shared library with headers. FFmpeg, libass and
 libplacebo are linked in statically. These are LGPLv2.1 builds, made with
 \`-Dgpl=false\`. Linux builds need glibc 2.28, Android builds API level 21,
-iOS builds iOS 13 and macOS builds macOS 11.
+iOS builds iOS 13 and macOS builds macOS 11. macOS builds have no audio
+output.
 
 $(section '^libmpv-.*-(linux|android|ios|macos)-')
 

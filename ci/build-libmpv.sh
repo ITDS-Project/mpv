@@ -36,7 +36,7 @@ ios|macos)
     else
         sdk=macosx
         target=$2-apple-macos11.0
-        mpv_args=(-Dcocoa=disabled)
+        mpv_args=(-D{audiounit,avfoundation,cocoa,coreaudio}=disabled)
     fi
     export MACOS_SDK="$(xcrun --sdk $sdk --show-sdk-path)"
     export MACOS_SDK_VERSION="$(xcrun --sdk $sdk --show-sdk-version)"
@@ -101,6 +101,7 @@ meson setup build "${mpv_args[@]}" \
   --prefer-static \
   --prefix="$PWD/artifact" \
   -D:default_library=shared \
+  -Db_lundef=true \
   -Dcplayer=false \
   -Dgpl=false
 meson compile -C build
